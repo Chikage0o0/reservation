@@ -3,27 +3,35 @@ package reservation;
 
 import "google/protobuf/timestamp.proto";
 
+// ReservationStatus defines the status of a reservation
 enum ReservationStatus {
-    STATUS_UNKNOWN = 0;
-    STATUS_PENDING = 1;
-    STATUS_CONFIRMED = 2;
-    STATUS_BLOCKED = 3;
+    RESERVATION_STATUS_UNKNOWN = 0;
+    RESERVATION_STATUS_PENDING = 1;
+    RESERVATION_STATUS_CONFIRMED = 2;
+    RESERVATION_STATUS_BLOCKED = 3;
 }
 
+// When a reservation is created/updated/deleted, the type of the update is sent to the listener
 enum ReservationUpdateType {
-    UPDATA_TYPE_UNKNOWN = 0;
-    UPDATA_TYPE_CREATE = 1;
-    UPDATA_TYPE_UPDATE = 2;
-    UPDATA_TYPE_DELETE = 3;
+    RESERVATION_UPDATA_TYPE_UNKNOWN = 0;
+    RESERVATION_UPDATA_TYPE_CREATE = 1;
+    RESERVATION_UPDATA_TYPE_UPDATE = 2;
+    RESERVATION_UPDATA_TYPE_DELETE = 3;
 }
 
+// Reservation defines a reservation
 message Reservation {
+    // reservation id
     string id = 1;
+    // user id
     string user_id = 2;
+    // reservation status
     ReservationStatus status = 3;
 
-    // resource reservation window
+    // resource id
     string resource_id = 4;
+
+    // start and end time
     google.protobuf.Timestamp start = 5;
     google.protobuf.Timestamp end = 6;
 
@@ -31,10 +39,12 @@ message Reservation {
     string note = 7;
 }
 
+// ReserveRequest is the request to create a reservation
 message ReserveRequest {
     Reservation reservation = 1;
 }
 
+// ReserveResponse is the response to create a reservation
 message ReserveResponse {
     Reservation reservation = 1;
 }
