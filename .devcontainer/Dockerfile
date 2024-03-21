@@ -1,7 +1,14 @@
-FROM mcr.microsoft.com/devcontainers/rust:1-1-bookworm
+FROM mcr.microsoft.com/devcontainers/base:alpine
 
-# Include lld linker to improve build times either by using environment variable
-# RUSTFLAGS="-C link-arg=-fuse-ld=lld" or with Cargo's configuration file (i.e see .cargo/config.toml).
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-   && apt-get -y install clang lld \
-   && apt-get autoremove -y && apt-get clean -y
+# Add lld 、protobuf-dev 、protoc 
+RUN apk add --no-cache lld protobuf-dev pipx
+
+USER vscode
+
+# Install rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+# Install cargo-binstall and cargo tools
+RUN . $HOME/.cargo/env && cargo install cargo-binstall && cargo binstall cargo-deny cargo-nextest --no-confirm
+
+RUN pipx install pre-commit
