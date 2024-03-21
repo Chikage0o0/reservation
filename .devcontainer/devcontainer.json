@@ -25,7 +25,7 @@
   },
 
   // Use 'postCreateCommand' to run commands after the container is created.
-  "postCreateCommand": "cargo binstall sqlx-cli --no-confirm"
+  "postCreateCommand": "pre-commit install"
 
   // Configure tool-specific properties.
   // "customizations": {},
