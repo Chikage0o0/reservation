@@ -1,3 +1,9 @@
+#[allow(clippy::all, non_camel_case_types)]
+mod pb {
+
+    tonic::include_proto!("reservation");
+}
+
 pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
