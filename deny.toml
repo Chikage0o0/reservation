@@ -94,6 +94,8 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "Unicode-DFS-2016",
     "BSD-3-Clause",
+    "ISC",
+    "OpenSSL",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
@@ -108,6 +110,10 @@ exceptions = [
     #{ allow = ["Zlib"], crate = "adler32" },
 ]
 
+[[licenses.clarify]]
+crate = "ring"
+expression = "MIT AND ISC AND OpenSSL"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 # Some crates don't have (easily) machine readable licensing information,
 # adding a clarification entry for it allows you to manually specify the
 # licensing information
@@ -230,6 +236,6 @@ allow-git = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
-github = [""]
+github = []
 # 1 or more gitlab.com organizations to allow git sources for
-gitlab = [""]
+gitlab = []

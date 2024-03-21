@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/base:alpine
 
-# Add lld 、protobuf-dev 、protoc 
+# Add lld 、protobuf-dev 、protoc
 RUN apk add --no-cache lld protobuf-dev pipx
 
 USER vscode
