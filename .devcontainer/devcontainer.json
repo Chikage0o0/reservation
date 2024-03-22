@@ -21,7 +21,11 @@
         "eamodio.gitlens",
         "yzhang.markdown-all-in-one",
         "bradymholt.pgformatter"
-      ]
+      ],
+      "settings": {
+        "pgFormatter.keepNewline": true,
+        "pgFormatter.noExtraLine": true
+      }
     }
   },
 
