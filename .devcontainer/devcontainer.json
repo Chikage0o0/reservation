@@ -19,7 +19,8 @@
         "esbenp.prettier-vscode",
         "zxh404.vscode-proto3",
         "eamodio.gitlens",
-        "yzhang.markdown-all-in-one"
+        "yzhang.markdown-all-in-one",
+        "bradymholt.pgformatter"
       ]
     }
   },

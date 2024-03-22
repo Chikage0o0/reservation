@@ -1,1 +1,5 @@
+DROP EXTENSION IF EXISTS "btree_gist";
+
+DROP EXTENSION IF EXISTS "uuid-ossp";
+
 DROP SCHEMA rsvp CASCADE;
