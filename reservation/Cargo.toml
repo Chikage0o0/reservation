@@ -13,3 +13,6 @@ sqlx = { version = "0.7.4", features = [
     "uuid",
     "runtime-tokio-rustls",
 ] }
+abi = { path = "../abi" }
+thiserror = "1.0.58"
+chrono = { version = "0.4.35", features = ["serde"] }
