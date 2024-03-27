@@ -1,4 +1,4 @@
-use abi::timestamp_to_datetime;
+use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
@@ -9,25 +9,13 @@ use crate::ReservationManager;
 use crate::Rsvp;
 
 impl Rsvp for ReservationManager {
-    async fn reserve(
-        &self,
-        rsvp: abi::Reservation,
-    ) -> Result<abi::Reservation, crate::errors::ReservationError> {
-        if rsvp.start.is_none() || rsvp.end.is_none() {
-            return Err(crate::errors::ReservationError::InvalidTimespan);
-        }
-        let start = timestamp_to_datetime(rsvp.start.as_ref().unwrap());
-        let end = timestamp_to_datetime(rsvp.end.as_ref().unwrap());
+    async fn reserve(&self, rsvp: abi::Reservation) -> Result<abi::Reservation, abi::Error> {
+        rsvp.validate()?;
 
-        let status = abi::ReservationStatus::try_from(rsvp.status)
-            .unwrap_or(abi::ReservationStatus::Pending)
+        let timespan: PgRange<DateTime<Utc>> = rsvp.timespan()?.into();
+        let status = ReservationStatus::try_from(rsvp.status)
+            .unwrap_or(ReservationStatus::Unknown)
             .to_string();
-
-        if start >= end {
-            return Err(crate::errors::ReservationError::InvalidTimespan);
-        }
-
-        let timespan: PgRange<DateTime<Utc>> = (start..end).into();
 
         let id :Uuid= sqlx::query(
             r#"
@@ -47,17 +35,14 @@ impl Rsvp for ReservationManager {
         Ok(rsvp)
     }
 
-    async fn delete(
-        &self,
-        _rsvp: crate::ReservationId,
-    ) -> Result<(), crate::errors::ReservationError> {
+    async fn delete(&self, _rsvp: crate::ReservationId) -> Result<(), abi::Error> {
         todo!()
     }
 
     async fn change_status(
         &self,
         _rsvp: crate::ReservationId,
-    ) -> Result<abi::Reservation, crate::errors::ReservationError> {
+    ) -> Result<abi::Reservation, abi::Error> {
         todo!()
     }
 
@@ -65,21 +50,18 @@ impl Rsvp for ReservationManager {
         &self,
         _rsvp: crate::ReservationId,
         _note: String,
-    ) -> Result<abi::Reservation, crate::errors::ReservationError> {
+    ) -> Result<abi::Reservation, abi::Error> {
         todo!()
     }
 
-    async fn get(
-        &self,
-        _rsvp: crate::ReservationId,
-    ) -> Result<abi::Reservation, crate::errors::ReservationError> {
+    async fn get(&self, _rsvp: crate::ReservationId) -> Result<abi::Reservation, abi::Error> {
         todo!()
     }
 
     async fn query(
         &self,
         _query: abi::ReservationQuery,
-    ) -> Result<Vec<abi::Reservation>, crate::errors::ReservationError> {
+    ) -> Result<Vec<abi::Reservation>, abi::Error> {
         todo!()
     }
 }
@@ -121,26 +103,7 @@ mod test {
 
         let result = manager.reserve(rsvp).await;
 
-        assert!(result.is_err());
-    }
-
-    #[sqlx::test(migrations = "../migrations")]
-    async fn reserve_should_fail_with_missing_timespan(pool: PgPool) {
-        let manager = ReservationManager { pool: pool.clone() };
-
-        let rsvp = abi::Reservation {
-            id: "".to_string(),
-            user_id: "user".to_string(),
-            resource_id: "resource".to_string(),
-            status: 0,
-            start: None,
-            end: None,
-            note: "note".to_string(),
-        };
-
-        let result = manager.reserve(rsvp).await;
-
-        assert!(result.is_err());
+        assert!(matches!(result, Err(abi::Error::InvalidTimespan)));
     }
 
     #[sqlx::test(migrations = "../migrations")]
@@ -168,6 +131,6 @@ mod test {
 
         let result = manager.reserve(rsvp).await;
 
-        assert!(result.is_err());
+        assert!(matches!(result, Err(abi::Error::ConflictReservation(_))));
     }
 }
