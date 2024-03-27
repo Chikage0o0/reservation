@@ -15,7 +15,7 @@ CREATE TYPE rsvp.reservation_update_type AS ENUM(
 CREATE TABLE rsvp.reservations(
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     user_id varchar(64) NOT NULL,
-    STATUS rsvp.reservation_status NOT NULL DEFAULT 'pending',
+    status rsvp.reservation_status NOT NULL DEFAULT 'pending',
     resource_id varchar(64) NOT NULL,
     timespan tstzrange NOT NULL,
     note text,

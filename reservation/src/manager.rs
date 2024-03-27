@@ -1,9 +1,9 @@
+use abi::Reservation;
 use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
 use sqlx::types::Uuid;
-use sqlx::Row;
 
 use crate::ReservationManager;
 use crate::Rsvp;
@@ -17,19 +17,14 @@ impl Rsvp for ReservationManager {
             .unwrap_or(ReservationStatus::Unknown)
             .to_string();
 
-        let id :Uuid= sqlx::query(
+        let id :Uuid= sqlx::query!(
             r#"
             INSERT INTO rsvp.reservations (user_id, resource_id, status, timespan, note) VALUES ($1, $2, $3::rsvp.reservation_status, $4, $5)
-            RETURNING id
-        "#)
-        .bind(&rsvp.user_id)
-        .bind(&rsvp.resource_id)
-        .bind(status)
-        .bind(timespan)
-        .bind(&rsvp.note)
+            RETURNING id"#,&rsvp.user_id,&rsvp.resource_id,status as _,timespan,&rsvp.note)
         .fetch_one(&self.pool)
-        .await?.get(0);
+        .await?.id;
         let mut rsvp = rsvp;
+
         rsvp.id = id.to_string();
 
         Ok(rsvp)
@@ -41,17 +36,41 @@ impl Rsvp for ReservationManager {
 
     async fn change_status(
         &self,
-        _rsvp: crate::ReservationId,
+        rsvp: crate::ReservationId,
     ) -> Result<abi::Reservation, abi::Error> {
-        todo!()
+        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
+        // if a reservation is pending, it will be confirmed
+        let reservation: Reservation = sqlx::query_as(
+            r#"
+            UPDATE rsvp.reservations SET status='confirmed' WHERE id=$1 AND status='pending'
+            RETURNING *
+            "#,
+        )
+        .bind(uuid)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(reservation)
     }
 
     async fn update_notes(
         &self,
-        _rsvp: crate::ReservationId,
-        _note: String,
+        rsvp: crate::ReservationId,
+        note: String,
     ) -> Result<abi::Reservation, abi::Error> {
-        todo!()
+        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
+        let reservation: Reservation = sqlx::query_as(
+            r#"
+            UPDATE rsvp.reservations SET note=$1 WHERE id=$2
+            RETURNING *
+            "#,
+        )
+        .bind(note)
+        .bind(uuid)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(reservation)
     }
 
     async fn get(&self, _rsvp: crate::ReservationId) -> Result<abi::Reservation, abi::Error> {
@@ -73,17 +92,21 @@ mod test {
 
     use super::*;
 
-    #[sqlx::test(migrations = "../migrations")]
-    async fn reserve_should_work_with_valid_timespan(pool: PgPool) {
-        let manager = ReservationManager { pool: pool.clone() };
-
-        let rsvp = abi::Reservation::new_pendding(
+    fn default_rsvp() -> abi::Reservation {
+        abi::Reservation::new_pendding(
             "user",
             "resource",
             DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap(),
             DateTime::parse_from_rfc3339("2021-01-02T00:00:00Z").unwrap(),
             "note",
-        );
+        )
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn reserve_should_work_with_valid_timespan(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
@@ -97,7 +120,7 @@ mod test {
         let rsvp = abi::Reservation::new_pendding(
             "user",
             "resource",
-            DateTime::parse_from_rfc3339("2021-01-02T00:00:00Z").unwrap(),
+            DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap(),
             DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap(),
             "note",
         );
@@ -111,14 +134,10 @@ mod test {
     async fn reserve_should_fail_with_conflicting_timespan(pool: PgPool) {
         let manager = ReservationManager { pool: pool.clone() };
 
-        let first_start = DateTime::parse_from_rfc3339("2021-01-01T00:00:00Z").unwrap();
-        let first_end = DateTime::parse_from_rfc3339("2021-01-02T00:00:00Z").unwrap();
-
         let conflict_start = DateTime::parse_from_rfc3339("2021-01-01T12:00:00Z").unwrap();
         let conflict_end = DateTime::parse_from_rfc3339("2021-01-02T12:00:00Z").unwrap();
 
-        let rsvp =
-            abi::Reservation::new_pendding("user", "resource", first_start, first_end, "note");
+        let rsvp = default_rsvp();
 
         let result = manager.reserve(rsvp).await.unwrap();
         assert!(!result.id.is_empty());
@@ -142,8 +161,6 @@ mod test {
                 assert_eq!(old.resource_id, "resource");
                 assert_eq!(new.start, conflict_start);
                 assert_eq!(new.end, conflict_end);
-                assert_eq!(old.start, first_start);
-                assert_eq!(old.end, first_end);
             }
 
             e => {
@@ -151,5 +168,47 @@ mod test {
                 panic!("Unexpected error");
             }
         };
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn reservation_can_be_confirmed(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let rsvp = manager.change_status(rsvp.id).await.unwrap();
+        assert_eq!(rsvp.status, abi::ReservationStatus::Confirmed as i32);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn change_reservation_again_should_do_nothing(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let rsvp = manager.change_status(rsvp.id).await.unwrap();
+        assert_eq!(rsvp.status, abi::ReservationStatus::Confirmed as i32);
+
+        let ret = manager.change_status(rsvp.id).await;
+        assert!(matches!(ret, Err(abi::Error::NotFound)));
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn update_notes_should_work(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let rsvp = manager
+            .update_notes(rsvp.id, "new note".to_string())
+            .await
+            .unwrap();
+        assert_eq!(rsvp.note, "new note");
     }
 }

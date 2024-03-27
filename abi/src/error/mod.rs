@@ -19,8 +19,14 @@ pub enum Error {
     #[error("Unknown error")]
     Unknown,
 
+    #[error("Invalid ID")]
+    InvalidId,
+
     #[error("Database error: {0}")]
     DatabaseError(sqlx::Error),
+
+    #[error("Row not found")]
+    NotFound,
 }
 
 impl From<sqlx::Error> for Error {
@@ -36,7 +42,7 @@ impl From<sqlx::Error> for Error {
                     _ => Error::DatabaseError(sqlx::Error::Database(e)),
                 }
             }
-
+            sqlx::Error::RowNotFound => Error::NotFound,
             _ => Error::DatabaseError(e),
         }
     }

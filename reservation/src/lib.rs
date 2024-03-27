@@ -10,7 +10,7 @@ pub trait Rsvp {
         rsvp: abi::Reservation,
     ) -> impl std::future::Future<Output = Result<Reservation, abi::Error>> + Send;
 
-    // delete a Reservation
+    /// delete a Reservation
     fn delete(
         &self,
         rsvp: ReservationId,

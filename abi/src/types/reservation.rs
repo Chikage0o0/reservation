@@ -1,6 +1,11 @@
-use std::ops::Range;
+use std::ops::{Bound, Range};
 
 use chrono::{DateTime, FixedOffset, Utc};
+use sqlx::{
+    postgres::{types::PgRange, PgRow},
+    types::Uuid,
+    FromRow, Row,
+};
 
 use crate::{
     utils::{datetime_to_timestamp, timestamp_to_datetime},
@@ -47,5 +52,35 @@ impl Reservation {
         let start = timestamp_to_datetime(self.start.as_ref().unwrap());
         let end = timestamp_to_datetime(self.end.as_ref().unwrap());
         Ok(start..end)
+    }
+}
+
+impl FromRow<'_, PgRow> for Reservation {
+    fn from_row(row: &sqlx::postgres::PgRow) -> std::result::Result<Self, sqlx::Error> {
+        let id = row.get::<Uuid, _>("id").to_string();
+
+        let range = row.get::<PgRange<DateTime<Utc>>, _>("timespan");
+        let start = match range.start {
+            Bound::Included(start) | Bound::Excluded(start) => Some(start),
+            Bound::Unbounded => None,
+        }
+        .map(datetime_to_timestamp);
+        let end = match range.end {
+            Bound::Included(end) | Bound::Excluded(end) => Some(end),
+            Bound::Unbounded => None,
+        }
+        .map(datetime_to_timestamp);
+
+        let status: ReservationStatus = row.get("status");
+
+        Ok(Self {
+            id,
+            user_id: row.get("user_id"),
+            resource_id: row.get("resource_id"),
+            status: status as i32,
+            start,
+            end,
+            note: row.get("note"),
+        })
     }
 }
