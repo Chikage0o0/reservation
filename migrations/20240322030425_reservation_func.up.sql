@@ -39,8 +39,18 @@ BEGIN
             ELSE
                 'ASC'
         END,
-        page_size,
-        (page - 1) * page_size
+        CASE WHEN page IS NULL THEN
+            1
+        ELSE
+            page
+        END,
+        CASE WHEN page_size IS NULL AND page IS NULL THEN
+            0
+        WHEN page_size IS NULL THEN
+            (page - 1) * 10
+        ELSE
+            (page - 1) * page_size
+        END
     );
 
     RETURN QUERY EXECUTE _sql;

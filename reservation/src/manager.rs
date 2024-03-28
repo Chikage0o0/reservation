@@ -101,13 +101,10 @@ impl Rsvp for ReservationManager {
 
     async fn query(
         &self,
-        query: abi::ReservationQuery,
+        para: abi::ReservationQuery,
     ) -> Result<Vec<abi::Reservation>, abi::Error> {
-        let uid = str_to_option(&query.user_id);
-        let rid = str_to_option(&query.resource_id);
-
-        let timespan: PgRange<DateTime<Utc>> = query.timespan()?;
-        let status = ReservationStatus::try_from(query.status)
+        let timespan: PgRange<DateTime<Utc>> = para.timespan()?;
+        let status = ReservationStatus::try_from(para.status)
             .unwrap_or(ReservationStatus::Unknown)
             .to_string();
         // if user_id is null, find all reservations within during for the resource
@@ -120,13 +117,13 @@ impl Rsvp for ReservationManager {
             SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)
             "#,
         )
-        .bind(uid)
-        .bind(rid)
+        .bind(para.user_id)
+        .bind(para.resource_id)
         .bind(timespan)
         .bind(status)
-        .bind(query.page)
-        .bind(query.sort_desc)
-        .bind(query.page_size)
+        .bind(para.page)
+        .bind(para.sort_desc)
+        .bind(para.page_size)
         .fetch_all(&self.pool)
         .await?;
 
@@ -136,14 +133,6 @@ impl Rsvp for ReservationManager {
             .collect::<Result<Vec<Reservation>, _>>()?;
 
         Ok(query)
-    }
-}
-
-fn str_to_option(s: &str) -> Option<&str> {
-    if s.is_empty() {
-        None
-    } else {
-        Some(s)
     }
 }
 
@@ -322,19 +311,130 @@ mod test {
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
         let query = abi::ReservationQuery {
-            user_id: "".to_string(),
-            resource_id: "".to_string(),
+            user_id: None,
+            resource_id: None,
             start: None,
             end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
             status: 0,
-            page: 1,
+            page: None,
             sort_desc: false,
-            page_size: 10,
+            page_size: None,
         };
 
         let query = manager.query(query).await.unwrap();
 
         assert_eq!(query.len(), 1);
         assert_eq!(query[0].id, rsvp.id);
+
+        let query = abi::ReservationQuery {
+            user_id: Some("user".to_string()),
+            resource_id: Some("resource".to_string()),
+            start: None,
+            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            status: 1,
+            page: None,
+            sort_desc: false,
+            page_size: None,
+        };
+
+        let query = manager.query(query).await.unwrap();
+        assert_eq!(query.len(), 1);
+        assert_eq!(query[0].id, rsvp.id);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn query_should_work_with_user_id(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let _rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let query = abi::ReservationQuery {
+            user_id: Some("user1".to_string()),
+            resource_id: None,
+            start: None,
+            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            status: 0,
+            page: None,
+            sort_desc: false,
+            page_size: None,
+        };
+
+        let query = manager.query(query).await.unwrap();
+
+        assert_eq!(query.len(), 0);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn query_should_work_with_resource_id(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let _rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let query = abi::ReservationQuery {
+            user_id: None,
+            resource_id: Some("resource1".to_string()),
+            start: None,
+            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            status: 0,
+            page: None,
+            sort_desc: false,
+            page_size: None,
+        };
+
+        let query = manager.query(query).await.unwrap();
+
+        assert_eq!(query.len(), 0);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn query_should_work_with_status(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let _rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let query = abi::ReservationQuery {
+            user_id: None,
+            resource_id: None,
+            start: None,
+            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            status: 2,
+            page: None,
+            sort_desc: false,
+            page_size: None,
+        };
+
+        let query = manager.query(query).await.unwrap();
+
+        assert_eq!(query.len(), 0);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn query_should_work_with_timespan(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let _rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let query = abi::ReservationQuery {
+            user_id: None,
+            resource_id: None,
+            start: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
+            status: 0,
+            page: None,
+            sort_desc: false,
+            page_size: None,
+        };
+
+        let query = manager.query(query).await.unwrap();
+
+        assert_eq!(query.len(), 0);
     }
 }

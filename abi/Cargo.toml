@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 chrono = { version = "0.4.35", default-features = false }
+derive_builder = "0.20.0"
 prost = "0.12.3"
 prost-types = "0.12.3"
 regex = "1.10.4"
