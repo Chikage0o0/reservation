@@ -3,7 +3,6 @@ use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
-use sqlx::types::Uuid;
 use sqlx::FromRow;
 
 use crate::ReservationManager;
@@ -18,7 +17,7 @@ impl Rsvp for ReservationManager {
             .unwrap_or(ReservationStatus::Pending)
             .to_string();
 
-        let id :Uuid= sqlx::query!(
+        let id :i64= sqlx::query!(
             r#"
             INSERT INTO rsvp.reservations (user_id, resource_id, status, timespan, note) VALUES ($1, $2, $3::rsvp.reservation_status, $4, $5)
             RETURNING id"#,&rsvp.user_id,&rsvp.resource_id,status as _,timespan,&rsvp.note)
@@ -26,20 +25,19 @@ impl Rsvp for ReservationManager {
         .await?.id;
         let mut rsvp = rsvp;
 
-        rsvp.id = id.to_string();
+        rsvp.id = id;
 
         Ok(rsvp)
     }
 
     async fn delete(&self, rsvp: crate::ReservationId) -> Result<(), abi::Error> {
-        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
         let _ = sqlx::query(
             r#"
             DELETE FROM rsvp.reservations WHERE id=$1
             RETURNING *
             "#,
         )
-        .bind(uuid)
+        .bind(rsvp)
         .fetch_one(&self.pool)
         .await?;
 
@@ -50,7 +48,6 @@ impl Rsvp for ReservationManager {
         &self,
         rsvp: crate::ReservationId,
     ) -> Result<abi::Reservation, abi::Error> {
-        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
         // if a reservation is pending, it will be confirmed
         let reservation: Reservation = sqlx::query_as(
             r#"
@@ -58,7 +55,7 @@ impl Rsvp for ReservationManager {
             RETURNING *
             "#,
         )
-        .bind(uuid)
+        .bind(rsvp)
         .fetch_one(&self.pool)
         .await?;
 
@@ -70,7 +67,6 @@ impl Rsvp for ReservationManager {
         rsvp: crate::ReservationId,
         note: String,
     ) -> Result<abi::Reservation, abi::Error> {
-        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
         let reservation: Reservation = sqlx::query_as(
             r#"
             UPDATE rsvp.reservations SET note=$1 WHERE id=$2
@@ -78,7 +74,7 @@ impl Rsvp for ReservationManager {
             "#,
         )
         .bind(note)
-        .bind(uuid)
+        .bind(rsvp)
         .fetch_one(&self.pool)
         .await?;
 
@@ -86,13 +82,12 @@ impl Rsvp for ReservationManager {
     }
 
     async fn get(&self, rsvp: crate::ReservationId) -> Result<abi::Reservation, abi::Error> {
-        let uuid = Uuid::parse_str(&rsvp).map_err(|_| abi::Error::InvalidId)?;
         let reservation: Reservation = sqlx::query_as(
             r#"
             SELECT * FROM rsvp.reservations WHERE id=$1
             "#,
         )
-        .bind(uuid)
+        .bind(rsvp)
         .fetch_one(&self.pool)
         .await?;
 
@@ -139,6 +134,7 @@ impl Rsvp for ReservationManager {
 #[cfg(test)]
 mod test {
     use abi::error::conflict::{ReservationConflict, ReservationConflictInfo};
+    use chrono::Duration;
     use sqlx::PgPool;
 
     use super::*;
@@ -161,7 +157,7 @@ mod test {
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
-        assert!(!rsvp.id.is_empty());
+        assert!(rsvp.id != 0);
     }
 
     #[sqlx::test(migrations = "../migrations")]
@@ -191,7 +187,7 @@ mod test {
         let rsvp = default_rsvp();
 
         let result = manager.reserve(rsvp).await.unwrap();
-        assert!(!result.id.is_empty());
+        assert!(result.id != 0);
 
         let rsvp = abi::Reservation::new_pendding(
             "user",
@@ -283,7 +279,7 @@ mod test {
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
-        manager.delete(rsvp.id.clone()).await.unwrap();
+        manager.delete(rsvp.id).await.unwrap();
 
         let rsvp = manager.get(rsvp.id).await;
         assert!(matches!(rsvp, Err(abi::Error::NotFound)));
@@ -293,12 +289,7 @@ mod test {
     async fn delete_null_should_fail(pool: PgPool) {
         let manager = ReservationManager { pool: pool.clone() };
 
-        let result = manager.delete("".to_string()).await;
-
-        assert!(matches!(result, Err(abi::Error::InvalidId)));
-
-        let uuid = Uuid::parse_str("230debd9-7a90-4d9a-b017-96b469baa2d8").unwrap();
-        let result = manager.delete(uuid.to_string()).await;
+        let result = manager.delete(0).await;
         assert!(matches!(result, Err(abi::Error::NotFound)));
     }
 
@@ -310,32 +301,22 @@ mod test {
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = abi::ReservationQuery {
-            user_id: None,
-            resource_id: None,
-            start: None,
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 0,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .end(abi::utils::datetime_to_timestamp(Utc::now()))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
 
         assert_eq!(query.len(), 1);
         assert_eq!(query[0].id, rsvp.id);
 
-        let query = abi::ReservationQuery {
-            user_id: Some("user".to_string()),
-            resource_id: Some("resource".to_string()),
-            start: None,
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 1,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .user_id("user")
+            .resource_id("resource")
+            .end(abi::utils::datetime_to_timestamp(Utc::now()))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
         assert_eq!(query.len(), 1);
@@ -350,16 +331,11 @@ mod test {
 
         let _rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = abi::ReservationQuery {
-            user_id: Some("user1".to_string()),
-            resource_id: None,
-            start: None,
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 0,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .user_id("user1")
+            .end(abi::utils::datetime_to_timestamp(Utc::now()))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
 
@@ -374,16 +350,11 @@ mod test {
 
         let _rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = abi::ReservationQuery {
-            user_id: None,
-            resource_id: Some("resource1".to_string()),
-            start: None,
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 0,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .resource_id("resource1")
+            .end(abi::utils::datetime_to_timestamp(Utc::now()))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
 
@@ -398,16 +369,11 @@ mod test {
 
         let _rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = abi::ReservationQuery {
-            user_id: None,
-            resource_id: None,
-            start: None,
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 2,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .status(2)
+            .end(abi::utils::datetime_to_timestamp(Utc::now()))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
 
@@ -422,16 +388,13 @@ mod test {
 
         let _rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let query = abi::ReservationQuery {
-            user_id: None,
-            resource_id: None,
-            start: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            end: Some(abi::utils::datetime_to_timestamp(Utc::now())),
-            status: 0,
-            page: None,
-            sort_desc: false,
-            page_size: None,
-        };
+        let query = abi::ReservationQueryBuilder::default()
+            .start(abi::utils::datetime_to_timestamp(Utc::now()))
+            .end(abi::utils::datetime_to_timestamp(
+                Utc::now() + Duration::try_days(1).unwrap(),
+            ))
+            .build()
+            .unwrap();
 
         let query = manager.query(query).await.unwrap();
 

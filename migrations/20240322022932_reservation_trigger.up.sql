@@ -1,7 +1,7 @@
 -- resevation change queue
 CREATE TABLE rsvp.reservation_changes(
     id serial NOT NULL,
-    reservation_id uuid NOT NULL,
+    reservation_id bigint NOT NULL,
     op rsvp.reservation_update_type NOT NULL
 );
 

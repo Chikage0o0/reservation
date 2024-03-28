@@ -1,7 +1,7 @@
 use abi::{Reservation, ReservationQuery};
 
 mod manager;
-pub type ReservationId = String;
+pub type ReservationId = i64;
 
 pub trait Rsvp {
     // Reserve a Reservation

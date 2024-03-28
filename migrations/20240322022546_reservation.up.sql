@@ -13,7 +13,7 @@ CREATE TYPE rsvp.reservation_update_type AS ENUM(
 );
 
 CREATE TABLE rsvp.reservations(
-    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    id bigserial NOT NULL,
     user_id varchar(64) NOT NULL,
     status rsvp.reservation_status NOT NULL DEFAULT 'pending',
     resource_id varchar(64) NOT NULL,

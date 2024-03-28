@@ -22,7 +22,7 @@ enum ReservationUpdateType {
 // Reservation defines a reservation
 message Reservation {
     // reservation id
-    string id = 1;
+    int64 id = 1;
     // user id
     string user_id = 2;
     // reservation status
@@ -88,8 +88,8 @@ message ReservationQuery {
     ReservationStatus status = 3;
     google.protobuf.Timestamp start = 4;
     google.protobuf.Timestamp end = 5;
-    optional int32 page = 6;
-    optional int32 page_size = 7;
+    int32 page = 6;
+    int32 page_size = 7;
     bool sort_desc = 8;
 }
 

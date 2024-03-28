@@ -14,6 +14,14 @@ CREATE OR REPLACE FUNCTION rsvp.query(
 DECLARE
     _sql text;
 BEGIN
+    IF page < 1 THEN
+        page := 1;
+    END IF;
+
+    IF page_size < 1 OR page_size > 100 THEN
+        page_size := 10;
+    END IF;
+
     -- format the query
     _sql := format('SELECT * FROM rsvp.reservations WHERE %L @> timespan AND %s AND %s ORDER BY lower(timespan) %s LIMIT   %s  OFFSET  %s',
         during,
@@ -39,18 +47,8 @@ BEGIN
             ELSE
                 'ASC'
         END,
-        CASE WHEN page IS NULL THEN
-            1
-        ELSE
-            page
-        END,
-        CASE WHEN page_size IS NULL AND page IS NULL THEN
-            0
-        WHEN page_size IS NULL THEN
-            (page - 1) * 10
-        ELSE
-            (page - 1) * page_size
-        END
+        page,
+        (page - 1) * page_size
     );
 
     RETURN QUERY EXECUTE _sql;
