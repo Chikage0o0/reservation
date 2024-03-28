@@ -1,4 +1,4 @@
-use abi::{Reservation, ReservationQuery};
+use abi::{FilterRequest, Reservation, ReservationQuery};
 
 mod manager;
 pub type ReservationId = i64;
@@ -37,6 +37,11 @@ pub trait Rsvp {
     fn query(
         &self,
         query: ReservationQuery,
+    ) -> impl std::future::Future<Output = Result<Vec<Reservation>, abi::Error>> + Send;
+
+    fn filter(
+        &self,
+        filter: FilterRequest,
     ) -> impl std::future::Future<Output = Result<Vec<Reservation>, abi::Error>> + Send;
 }
 

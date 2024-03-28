@@ -117,7 +117,7 @@ impl Rsvp for ReservationManager {
         .bind(timespan)
         .bind(status)
         .bind(para.page)
-        .bind(para.sort_desc)
+        .bind(para.is_desc)
         .bind(para.page_size)
         .fetch_all(&self.pool)
         .await?;
@@ -128,6 +128,17 @@ impl Rsvp for ReservationManager {
             .collect::<Result<Vec<Reservation>, _>>()?;
 
         Ok(query)
+    }
+
+    async fn filter(&self, _filter: abi::FilterRequest) -> Result<Vec<Reservation>, abi::Error> {
+        // filter by user_id, resource_id, status and order by id
+        // let query = sqlx::query_as(
+        //     r#"
+        //     SELECT * FROM rsvp.reservations WHERE user_id=$1 AND resource_id=$2 AND status=$3::rsvp.reservation_status ORDER BY id
+        //     "#,
+        // );
+
+        todo!()
     }
 }
 

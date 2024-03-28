@@ -24,7 +24,7 @@ fn main() {
             "ReservationQuery.page_size",
             "  #[builder(default= \"10\")]",
         )
-        .field_attribute("ReservationQuery.sort_desc", "  #[builder(default)]")
+        .field_attribute("ReservationQuery.is_desc", "  #[builder(default)]")
         .field_attribute("ReservationQuery.status", "  #[builder(default)]")
         .compile(&["protos/reservation.proto"], &["protos"])
         .unwrap();

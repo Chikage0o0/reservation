@@ -90,11 +90,21 @@ message ReservationQuery {
     google.protobuf.Timestamp end = 5;
     int32 page = 6;
     int32 page_size = 7;
-    bool sort_desc = 8;
+    bool is_desc = 8;
 }
 
 message QueryRequest {
     ReservationQuery query = 1;
+}
+
+message FilterRequest {
+    optional string resource_id = 1;
+    optional string user_id = 2;
+    // use status to filter result. If UNKNOWN, return all reservations
+    ReservationStatus status = 3;
+    int64 cursor = 4;
+    int32 page_size = 5;
+    bool is_desc = 6;
 }
 
 message ListenRequest {}
@@ -109,7 +119,10 @@ service ReservationService {
     rpc update(UpdateRequest) returns (UpdateResponse);
     rpc cancel(CancelRequest) returns (CancelResponse);
     rpc get(GetRequest) returns (GetResponse);
+    // for user to query reservations
     rpc query(QueryRequest) returns (stream Reservation);
+    // for admin to query reservations
+    rpc filter(FilterRequest) returns (stream Reservation);
     // another system could monitor newly added/confirmed/cancelled reservations
     rpc listen(ListenRequest) returns (stream Reservation);
 }
