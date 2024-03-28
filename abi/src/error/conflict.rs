@@ -40,14 +40,15 @@ impl FromStr for ReservationConflict {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let re=RESERVATION_CONFLICT_REGEX.get_or_init(|| Regex::new(r#"\(resource_id, timespan\)=\((\w+), \[\"([\d-]+\s[\d:+]+)\",\"([\d-]+\s[\d:+]+)\"\)\)"#).unwrap());
 
+        const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S%#z";
         let mut cap = re.captures_iter(s);
         let cap1 = cap.next().ok_or(())?;
         let new = ReservationWindow {
             resource_id: cap1[1].to_string(),
-            start: DateTime::parse_from_str(&cap1[2], "%Y-%m-%d %H:%M:%S%#z")
+            start: DateTime::parse_from_str(&cap1[2], TIME_FORMAT)
                 .map_err(|_| ())?
                 .with_timezone(&Utc),
-            end: DateTime::parse_from_str(&cap1[3], "%Y-%m-%d %H:%M:%S%#z")
+            end: DateTime::parse_from_str(&cap1[3], TIME_FORMAT)
                 .map_err(|_| ())?
                 .with_timezone(&Utc),
         };
@@ -55,10 +56,10 @@ impl FromStr for ReservationConflict {
         let cap2 = cap.next().ok_or(())?;
         let old = ReservationWindow {
             resource_id: cap2[1].to_string(),
-            start: DateTime::parse_from_str(&cap2[2], "%Y-%m-%d %H:%M:%S%#z")
+            start: DateTime::parse_from_str(&cap2[2], TIME_FORMAT)
                 .map_err(|_| ())?
                 .with_timezone(&Utc),
-            end: DateTime::parse_from_str(&cap2[3], "%Y-%m-%d %H:%M:%S%#z")
+            end: DateTime::parse_from_str(&cap2[3], TIME_FORMAT)
                 .map_err(|_| ())?
                 .with_timezone(&Utc),
         };

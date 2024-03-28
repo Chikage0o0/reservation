@@ -9,4 +9,4 @@ pub mod error;
 pub use error::Error;
 
 mod types;
-mod utils;
+pub mod utils;

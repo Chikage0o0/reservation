@@ -1,4 +1,4 @@
-use std::ops::{Bound, Range};
+use std::ops::Bound;
 
 use chrono::{DateTime, FixedOffset, Utc};
 use sqlx::{
@@ -39,7 +39,7 @@ impl Reservation {
         Ok(())
     }
 
-    pub fn timespan(&self) -> Result<Range<DateTime<Utc>>, Error> {
+    pub fn timespan(&self) -> Result<PgRange<DateTime<Utc>>, Error> {
         if self.start.is_none() || self.end.is_none() {
             return Err(Error::InvalidTimespan);
         }
@@ -51,7 +51,7 @@ impl Reservation {
 
         let start = timestamp_to_datetime(self.start.as_ref().unwrap());
         let end = timestamp_to_datetime(self.end.as_ref().unwrap());
-        Ok(start..end)
+        Ok((start..end).into())
     }
 }
 
