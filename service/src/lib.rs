@@ -58,7 +58,7 @@ mod test {
         let env_file = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join(".devcontainer/.env");
+            .join(".env");
         dotenvy::from_path(env_file).unwrap();
         const HOST: &str = "127.0.0.1";
         let port = find_free_port(HOST);

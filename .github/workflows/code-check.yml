@@ -1,4 +1,4 @@
-name: build
+name: code-check
 
 on:
   push:
@@ -9,11 +9,12 @@ on:
       - master
 
 jobs:
-  build-rust:
+  code-check:
     strategy:
       matrix:
         platform: [ubuntu-latest]
     runs-on: ${{ matrix.platform }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,5 +36,15 @@ jobs:
         run: cargo check --all
       - name: Lint rust sources
         run: cargo clippy --all-targets --all-features --tests --benches -- -D warnings
+      - name: Load .env and start the database
+        run: |
+          set -a
+          . ./.env
+          set +a
+          docker run -d --name postgres -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD -e POSTGRES_DB=$POSTGRES_DB -p 5432:5432 postgres:alpine
       - name: Execute rust tests
         run: cargo nextest run --all-features
+      - name: Clean up Docker containers
+        run: |
+          docker stop postgres
+          docker rm postgres
