@@ -42,18 +42,22 @@ impl BuilderExt for tonic_build::Builder {
     }
 
     fn add_builder_for_reservation_filter(self) -> Self {
-        self.type_attribute("FilterRequest", "#[derive(derive_builder::Builder)]")
+        self.type_attribute("ReservationFilter", "#[derive(derive_builder::Builder)]")
             .field_attribute(
-                "FilterRequest.user_id",
+                "ReservationFilter.user_id",
                 "  #[builder(setter(into, strip_option), default)]",
             )
             .field_attribute(
-                "FilterRequest.resource_id",
+                "ReservationFilter.resource_id",
                 "  #[builder(setter(into, strip_option), default)]",
             )
-            .field_attribute("FilterRequest.cursor", "  #[builder(default)]")
-            .field_attribute("FilterRequest.page_size", "  #[builder(default= \"10\")]")
-            .field_attribute("FilterRequest.is_desc", "  #[builder(default)]")
-            .field_attribute("FilterRequest.status", "  #[builder(default)]")
+            .field_attribute("ReservationFilter.cursor", "  #[builder(default)]")
+            .field_attribute(
+                "ReservationFilter.page_size",
+                "  #[builder(default= \"10\")]",
+            )
+            .field_attribute("ReservationFilter.is_desc", "  #[builder(default)]")
+            .field_attribute("ReservationFilter.is_prev", "  #[builder(default)]")
+            .field_attribute("ReservationFilter.status", "  #[builder(default)]")
     }
 }

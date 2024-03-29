@@ -124,26 +124,53 @@ impl Rsvp for ReservationManager {
         Ok(query)
     }
 
-    async fn filter(&self, filter: abi::FilterRequest) -> Result<Vec<Reservation>, abi::Error> {
-        let status = ReservationStatus::try_from(filter.status)
+    async fn filter(
+        &self,
+        para: abi::ReservationFilter,
+    ) -> Result<(abi::FilterPager, Vec<Reservation>), abi::Error> {
+        let mut para = para;
+        let status = ReservationStatus::try_from(para.status)
             .unwrap_or(ReservationStatus::Unknown)
             .to_string();
+
+        if para.is_prev {
+            para.is_desc = !para.is_desc;
+        }
+
         // filter by user_id, resource_id, status and order by id
-        let query = sqlx::query_as(
+        let mut query: Vec<Reservation> = sqlx::query_as(
             r#"
             SELECT * FROM rsvp.filter($1, $2, $3::rsvp.reservation_status, $4, $5, $6)
             "#,
         )
-        .bind(filter.user_id)
-        .bind(filter.resource_id)
+        .bind(para.user_id)
+        .bind(para.resource_id)
         .bind(status)
-        .bind(filter.cursor)
-        .bind(filter.is_desc)
-        .bind(filter.page_size)
+        .bind(para.cursor)
+        .bind(para.is_desc)
+        .bind(para.page_size)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(query)
+        if para.is_prev {
+            query.reverse();
+        }
+
+        let prev = if query.len() < para.page_size as usize && para.is_prev {
+            None
+        } else {
+            query.first().map(|r| r.id)
+        };
+
+        let next = if query.len() < para.page_size as usize && !para.is_prev {
+            None
+        } else {
+            query.last().map(|r| r.id)
+        };
+
+        let pager = abi::FilterPager { prev, next };
+
+        Ok((pager, query))
     }
 }
 
@@ -425,30 +452,30 @@ mod test {
 
         let rsvp = manager.reserve(rsvp).await.unwrap();
 
-        let filter = abi::FilterRequestBuilder::default().build().unwrap();
+        let filter = abi::ReservationFilterBuilder::default().build().unwrap();
 
         let filter = manager.filter(filter).await.unwrap();
+        assert!(filter.0.next.is_none());
+        assert_eq!(filter.1.len(), 1);
+        assert_eq!(filter.1[0].id, rsvp.id);
 
-        assert_eq!(filter.len(), 1);
-        assert_eq!(filter[0].id, rsvp.id);
-
-        let filter = abi::FilterRequestBuilder::default()
+        let filter = abi::ReservationFilterBuilder::default()
             .user_id("user")
             .resource_id("resource")
             .build()
             .unwrap();
 
         let filter = manager.filter(filter).await.unwrap();
-        assert_eq!(filter.len(), 1);
-        assert_eq!(filter[0].id, rsvp.id);
+        assert_eq!(filter.1.len(), 1);
+        assert_eq!(filter.1[0].id, rsvp.id);
 
-        let filter = abi::FilterRequestBuilder::default()
+        let filter = abi::ReservationFilterBuilder::default()
             .user_id("user1")
             .resource_id("resource")
             .build()
             .unwrap();
 
         let filter = manager.filter(filter).await.unwrap();
-        assert_eq!(filter.len(), 0);
+        assert_eq!(filter.1.len(), 0);
     }
 }

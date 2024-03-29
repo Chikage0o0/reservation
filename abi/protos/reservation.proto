@@ -97,7 +97,7 @@ message QueryRequest {
     ReservationQuery query = 1;
 }
 
-message FilterRequest {
+message ReservationFilter {
     optional string resource_id = 1;
     optional string user_id = 2;
     // use status to filter result. If UNKNOWN, return all reservations
@@ -105,6 +105,24 @@ message FilterRequest {
     int64 cursor = 4;
     int32 page_size = 5;
     bool is_desc = 6;
+    // if is_prev is true, reverse the order of the result
+    bool is_prev = 7;
+}
+
+message FilterRequest {
+    ReservationFilter filter = 1;
+
+}
+
+message FilterResponse {
+    repeated Reservation reservation = 1;
+    FilterPager pager = 2;
+}
+
+// filter pager info
+message FilterPager {
+    optional int64 prev = 1;
+    optional int64 next = 2;
 }
 
 message ListenRequest {}
@@ -122,7 +140,7 @@ service ReservationService {
     // for user to query reservations
     rpc query(QueryRequest) returns (stream Reservation);
     // for admin to query reservations
-    rpc filter(FilterRequest) returns (stream Reservation);
+    rpc filter(FilterRequest) returns (FilterResponse);
     // another system could monitor newly added/confirmed/cancelled reservations
     rpc listen(ListenRequest) returns (stream Reservation);
 }
