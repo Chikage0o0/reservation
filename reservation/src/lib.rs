@@ -52,12 +52,13 @@ pub struct ReservationManager {
 }
 
 impl ReservationManager {
-    pub async fn new(confg: DbConfig) -> Result<Self, Error> {
-        let db_url = format!(
-            "postgres://{}:{}@{}:{}/{}",
-            confg.user, confg.password, confg.host, confg.port, confg.database
-        );
+    pub async fn from_config(confg: &DbConfig) -> Result<Self, Error> {
+        let db_url = confg.db_url();
         let pool = sqlx::PgPool::connect(&db_url).await?;
         Ok(Self { pool })
+    }
+
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
     }
 }

@@ -53,3 +53,19 @@ impl From<sqlx::Error> for Error {
         }
     }
 }
+
+impl From<Error> for tonic::Status {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::InvalidUserId => tonic::Status::invalid_argument("Invalid User ID"),
+            Error::InvalidTimespan => tonic::Status::invalid_argument("Invalid timespan"),
+            Error::ConflictReservation(e) => tonic::Status::already_exists(format!("{:?}", e)),
+            Error::Unknown => tonic::Status::unknown("Unknown error"),
+            Error::InvalidId => tonic::Status::invalid_argument("Invalid ID"),
+            Error::DatabaseError(_) => tonic::Status::internal("Database error"),
+            Error::NotFound => tonic::Status::not_found("Row not found"),
+            Error::IoError(_) => tonic::Status::internal("IO error"),
+            Error::InvalidConfig(_) => tonic::Status::invalid_argument("Invalid config"),
+        }
+    }
+}

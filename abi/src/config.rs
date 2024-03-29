@@ -40,6 +40,22 @@ impl Config {
     }
 }
 
+impl DbConfig {
+    pub fn db_url(&self) -> String {
+        if self.password.is_empty() {
+            format!(
+                "postgres://{}@{}:{}/{}",
+                self.user, self.host, self.port, self.database
+            )
+        } else {
+            format!(
+                "postgres://{}:{}@{}:{}/{}",
+                self.user, self.password, self.host, self.port, self.database
+            )
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
