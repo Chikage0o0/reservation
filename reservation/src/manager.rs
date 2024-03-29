@@ -3,6 +3,7 @@ use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
+use sqlx::Row;
 
 use crate::ReservationManager;
 use crate::Rsvp;
@@ -16,12 +17,18 @@ impl Rsvp for ReservationManager {
             .unwrap_or(ReservationStatus::Pending)
             .to_string();
 
-        let id :i64= sqlx::query!(
+        let id:i64 = sqlx::query(
             r#"
             INSERT INTO rsvp.reservations (user_id, resource_id, status, timespan, note) VALUES ($1, $2, $3::rsvp.reservation_status, $4, $5)
-            RETURNING id"#,&rsvp.user_id,&rsvp.resource_id,status as _,timespan,&rsvp.note)
+            RETURNING id"#)
+        .bind(&rsvp.user_id)
+        .bind(&rsvp.resource_id)
+        .bind(status)
+        .bind(timespan)
+        .bind(&rsvp.note)
         .fetch_one(&self.pool)
-        .await?.id;
+        .await?
+        .get(0);
         let mut rsvp = rsvp;
 
         rsvp.id = id;
