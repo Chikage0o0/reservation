@@ -43,7 +43,11 @@ jobs:
           set +a
           docker run -d --name postgres -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD -e POSTGRES_DB=$POSTGRES_DB -p 5432:5432 postgres:alpine
       - name: Execute rust tests
-        run: cargo nextest run --all-features
+        run: |
+          set -a
+          . ./.env
+          set +a
+          cargo nextest run --all-features
       - name: Clean up Docker containers
         run: |
           docker stop postgres
