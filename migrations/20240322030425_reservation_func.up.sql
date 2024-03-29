@@ -47,7 +47,7 @@ BEGIN
             ELSE
                 'ASC'
         END,
-        page,
+        page_size,
         (page - 1) * page_size
     );
 
@@ -61,16 +61,31 @@ CREATE OR REPLACE FUNCTION rsvp.filter(
     uid text,
     rid text,
     status rsvp.reservation_status DEFAULT 'unknown',
-    page integer DEFAULT 1,
+    cursor bigint DEFAULT 0,
     is_desc bool DEFAULT FALSE,
     page_size integer DEFAULT 10
 ) RETURNS TABLE(LIKE rsvp.reservations) AS $$
 DECLARE
     _sql text;
 BEGIN
+    IF page_size < 1 OR page_size > 100 THEN
+        page_size := 10;
+    END IF;
+    IF cursor < 0 THEN
+        cursor := 0;
+    END IF;
+    IF cursor > 9223372036854775807 THEN
+        cursor := 9223372036854775807;
+    END IF;
     -- format the query
-    _sql := format('SELECT * FROM rsvp.reservations WHERE %L @> timespan AND %s AND %s ORDER BY lower(timespan) %s LIMIT   %s  OFFSET  %s',
-        during,
+    _sql := format('SELECT * FROM rsvp.reservations WHERE %s AND %s AND %s ORDER BY lower(timespan) %s LIMIT %s ',
+        CASE
+            WHEN is_desc THEN
+                'id < ' || quote_literal(cursor)
+            ELSE
+                'id > ' || quote_literal(cursor)
+        END,
+
         CASE
             WHEN uid IS NULL AND rid IS NULL THEN
                 'TRUE'
@@ -93,8 +108,7 @@ BEGIN
             ELSE
                 'ASC'
         END,
-        page,
-        (page - 1) * page_size
+        page_size
     );
 
     RETURN QUERY EXECUTE _sql;

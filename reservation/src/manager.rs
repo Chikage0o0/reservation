@@ -3,7 +3,6 @@ use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
-use sqlx::FromRow;
 
 use crate::ReservationManager;
 use crate::Rsvp;
@@ -107,7 +106,7 @@ impl Rsvp for ReservationManager {
         // if both are null, find all reservations within during
         // if both set, find all reservations within during for the resource and user
         // if status == unknown, find all reservations within during
-        let query = sqlx::query(
+        let query = sqlx::query_as(
             r#"
             SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)
             "#,
@@ -122,23 +121,29 @@ impl Rsvp for ReservationManager {
         .fetch_all(&self.pool)
         .await?;
 
-        let query = query
-            .into_iter()
-            .map(|row| Reservation::from_row(&row))
-            .collect::<Result<Vec<Reservation>, _>>()?;
-
         Ok(query)
     }
 
-    async fn filter(&self, _filter: abi::FilterRequest) -> Result<Vec<Reservation>, abi::Error> {
+    async fn filter(&self, filter: abi::FilterRequest) -> Result<Vec<Reservation>, abi::Error> {
+        let status = ReservationStatus::try_from(filter.status)
+            .unwrap_or(ReservationStatus::Unknown)
+            .to_string();
         // filter by user_id, resource_id, status and order by id
-        // let query = sqlx::query_as(
-        //     r#"
-        //     SELECT * FROM rsvp.reservations WHERE user_id=$1 AND resource_id=$2 AND status=$3::rsvp.reservation_status ORDER BY id
-        //     "#,
-        // );
+        let query = sqlx::query_as(
+            r#"
+            SELECT * FROM rsvp.filter($1, $2, $3::rsvp.reservation_status, $4, $5, $6)
+            "#,
+        )
+        .bind(filter.user_id)
+        .bind(filter.resource_id)
+        .bind(status)
+        .bind(filter.cursor)
+        .bind(filter.is_desc)
+        .bind(filter.page_size)
+        .fetch_all(&self.pool)
+        .await?;
 
-        todo!()
+        Ok(query)
     }
 }
 
@@ -410,5 +415,40 @@ mod test {
         let query = manager.query(query).await.unwrap();
 
         assert_eq!(query.len(), 0);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn filter_should_work(pool: PgPool) {
+        let manager = ReservationManager { pool: pool.clone() };
+
+        let rsvp = default_rsvp();
+
+        let rsvp = manager.reserve(rsvp).await.unwrap();
+
+        let filter = abi::FilterRequestBuilder::default().build().unwrap();
+
+        let filter = manager.filter(filter).await.unwrap();
+
+        assert_eq!(filter.len(), 1);
+        assert_eq!(filter[0].id, rsvp.id);
+
+        let filter = abi::FilterRequestBuilder::default()
+            .user_id("user")
+            .resource_id("resource")
+            .build()
+            .unwrap();
+
+        let filter = manager.filter(filter).await.unwrap();
+        assert_eq!(filter.len(), 1);
+        assert_eq!(filter[0].id, rsvp.id);
+
+        let filter = abi::FilterRequestBuilder::default()
+            .user_id("user1")
+            .resource_id("resource")
+            .build()
+            .unwrap();
+
+        let filter = manager.filter(filter).await.unwrap();
+        assert_eq!(filter.len(), 0);
     }
 }
