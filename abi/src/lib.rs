@@ -7,6 +7,6 @@ pub use pb::*;
 
 pub mod error;
 pub use error::Error;
-
+pub mod config;
 mod types;
 pub mod utils;

@@ -27,6 +27,12 @@ pub enum Error {
 
     #[error("Row not found")]
     NotFound,
+
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
 }
 
 impl From<sqlx::Error> for Error {

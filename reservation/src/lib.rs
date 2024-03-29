@@ -1,4 +1,5 @@
-use abi::{Reservation, ReservationFilter, ReservationQuery};
+use abi::{config::DbConfig, Reservation, ReservationFilter, ReservationQuery};
+use sqlx::Error;
 
 mod manager;
 pub type ReservationId = i64;
@@ -48,4 +49,15 @@ pub trait Rsvp {
 #[derive(Debug)]
 pub struct ReservationManager {
     pool: sqlx::PgPool,
+}
+
+impl ReservationManager {
+    pub async fn new(confg: DbConfig) -> Result<Self, Error> {
+        let db_url = format!(
+            "postgres://{}:{}@{}:{}/{}",
+            confg.user, confg.password, confg.host, confg.port, confg.database
+        );
+        let pool = sqlx::PgPool::connect(&db_url).await?;
+        Ok(Self { pool })
+    }
 }
