@@ -44,25 +44,49 @@ impl ReservationService for RsvpService {
     }
     async fn confirm(
         &self,
-        _request: Request<ConfirmRequest>,
+        request: Request<ConfirmRequest>,
     ) -> Result<Response<ConfirmResponse>, Status> {
-        todo!()
+        let request: ConfirmRequest = request.into_inner();
+        let rsvp = self.manager.change_status(request.id).await?;
+
+        Ok(Response::new(ConfirmResponse {
+            reservation: Some(rsvp),
+        }))
     }
+
     async fn update(
         &self,
-        _request: Request<UpdateRequest>,
+        request: Request<UpdateRequest>,
     ) -> Result<Response<UpdateResponse>, Status> {
-        todo!()
+        let request: UpdateRequest = request.into_inner();
+        let rsvp = self.manager.update_notes(request.id, request.note).await?;
+
+        Ok(Response::new(UpdateResponse {
+            reservation: Some(rsvp),
+        }))
     }
+
     async fn cancel(
         &self,
-        _request: Request<CancelRequest>,
+        request: Request<CancelRequest>,
     ) -> Result<Response<CancelResponse>, Status> {
-        todo!()
+        let request: CancelRequest = request.into_inner();
+        let rsvp = self.manager.change_status(request.id).await?;
+
+        Ok(Response::new(CancelResponse {
+            reservation: Some(rsvp),
+        }))
     }
-    async fn get(&self, _request: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
-        todo!()
+
+    async fn get(&self, request: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
+        let request: GetRequest = request.into_inner();
+        let rsvp = self.manager.get(request.id).await?;
+
+        Ok(Response::new(GetResponse {
+            reservation: Some(rsvp),
+        }))
     }
+
     /// Server streaming response type for the query method.
     type queryStream = ReservationStream;
     /// for user to query reservations
@@ -92,6 +116,8 @@ impl ReservationService for RsvpService {
 
 #[cfg(test)]
 mod test {
+    use abi::ReservationStatus;
+
     use super::*;
 
     #[sqlx::test(migrations = "../migrations")]
@@ -109,5 +135,101 @@ mod test {
         };
         let response = service.reserve(Request::new(request)).await.unwrap();
         assert_eq!(response.get_ref().reservation.as_ref().unwrap().id, 1);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn test_confirm(pool: sqlx::PgPool) {
+        let manager = ReservationManager::new(pool);
+        let service = RsvpService::new(manager);
+        let request = ReserveRequest {
+            reservation: Some(abi::Reservation::new_pendding(
+                "user".to_string(),
+                "room".to_string(),
+                "2021-01-01T00:00:00Z".parse().unwrap(),
+                "2021-01-02T00:00:00Z".parse().unwrap(),
+                "note",
+            )),
+        };
+        let response = service.reserve(Request::new(request)).await.unwrap();
+        assert_eq!(response.get_ref().reservation.as_ref().unwrap().id, 1);
+        assert_eq!(
+            response.get_ref().reservation.as_ref().unwrap().status,
+            ReservationStatus::Pending as i32
+        );
+        let request = ConfirmRequest { id: 1 };
+        let response = service.confirm(Request::new(request)).await.unwrap();
+        assert_eq!(
+            response.get_ref().reservation.as_ref().unwrap().status,
+            ReservationStatus::Confirmed as i32
+        );
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn test_update(pool: sqlx::PgPool) {
+        let manager = ReservationManager::new(pool);
+        let service = RsvpService::new(manager);
+        let request = ReserveRequest {
+            reservation: Some(abi::Reservation::new_pendding(
+                "user".to_string(),
+                "room".to_string(),
+                "2021-01-01T00:00:00Z".parse().unwrap(),
+                "2021-01-02T00:00:00Z".parse().unwrap(),
+                "note",
+            )),
+        };
+        let response = service.reserve(Request::new(request)).await.unwrap();
+        assert_eq!(response.get_ref().reservation.as_ref().unwrap().id, 1);
+        let request = UpdateRequest {
+            id: 1,
+            note: "new note".to_string(),
+        };
+        let response = service.update(Request::new(request)).await.unwrap();
+        assert_eq!(
+            response.get_ref().reservation.as_ref().unwrap().note,
+            "new note"
+        );
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn test_cancel(pool: sqlx::PgPool) {
+        let manager = ReservationManager::new(pool);
+        let service = RsvpService::new(manager);
+        let request = ReserveRequest {
+            reservation: Some(abi::Reservation::new_pendding(
+                "user".to_string(),
+                "room".to_string(),
+                "2021-01-01T00:00:00Z".parse().unwrap(),
+                "2021-01-02T00:00:00Z".parse().unwrap(),
+                "note",
+            )),
+        };
+        let response = service.reserve(Request::new(request)).await.unwrap();
+        assert_eq!(response.get_ref().reservation.as_ref().unwrap().id, 1);
+        let request = CancelRequest { id: 1 };
+        let response = service.cancel(Request::new(request)).await.unwrap();
+        assert_eq!(response.get_ref().reservation.as_ref().unwrap().status, 2);
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn test_get(pool: sqlx::PgPool) {
+        let manager = ReservationManager::new(pool);
+        let service = RsvpService::new(manager);
+        let request = ReserveRequest {
+            reservation: Some(abi::Reservation::new_pendding(
+                "user".to_string(),
+                "room".to_string(),
+                "2021-01-01T00:00:00Z".parse().unwrap(),
+                "2021-01-02T00:00:00Z".parse().unwrap(),
+                "new note",
+            )),
+        };
+        let response = service.reserve(Request::new(request)).await.unwrap();
+        assert_eq!(response.get_ref().reservation.as_ref().unwrap().id, 1);
+        let request = GetRequest { id: 1 };
+        let response = service.get(Request::new(request)).await.unwrap();
+        assert_eq!(
+            response.get_ref().reservation.as_ref().unwrap().note,
+            "new note"
+        );
     }
 }

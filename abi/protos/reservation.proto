@@ -50,6 +50,7 @@ message ReserveResponse {
 }
 
 message UpdateRequest {
+    int64 id = 1;
     string note = 2;
 }
 
@@ -58,7 +59,7 @@ message UpdateResponse {
 }
 
 message ConfirmRequest {
-    string id = 1;
+    int64 id = 1;
 }
 
 message ConfirmResponse {
@@ -66,7 +67,7 @@ message ConfirmResponse {
 }
 
 message CancelRequest {
-    string id = 1;
+    int64 id = 1;
 }
 
 message CancelResponse {
@@ -74,7 +75,7 @@ message CancelResponse {
 }
 
 message GetRequest {
-    string id = 1;
+    int64 id = 1;
 }
 
 message GetResponse {
