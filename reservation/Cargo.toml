@@ -16,6 +16,8 @@ sqlx = { version = "0.7.4", features = [
 abi = { path = "../abi" }
 thiserror = "1.0.58"
 chrono = { version = "0.4.35", features = ["serde"] }
+tokio = { version = "1.36.0", features = ["sync"] }
+tokio-stream = "0.1.15"
 
 [dev-dependencies]
 sqlx = { version = "0.7.4", features = ["migrate"] }

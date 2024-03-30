@@ -1,3 +1,5 @@
+use tokio::sync::mpsc::Receiver;
+
 use abi::{config::DbConfig, Reservation, ReservationFilter, ReservationQuery};
 use sqlx::Error;
 
@@ -38,7 +40,9 @@ pub trait Rsvp {
     fn query(
         &self,
         query: ReservationQuery,
-    ) -> impl std::future::Future<Output = Result<Vec<Reservation>, abi::Error>> + Send;
+    ) -> impl std::future::Future<
+        Output = Result<Receiver<Result<abi::Reservation, abi::Error>>, abi::Error>,
+    > + Send;
 
     fn filter(
         &self,

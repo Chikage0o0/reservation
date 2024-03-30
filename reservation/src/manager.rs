@@ -1,12 +1,13 @@
+use crate::ReservationManager;
+use crate::Rsvp;
 use abi::Reservation;
 use abi::ReservationStatus;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::postgres::types::PgRange;
 use sqlx::Row;
-
-use crate::ReservationManager;
-use crate::Rsvp;
+use tokio::sync::mpsc;
+use tokio_stream::StreamExt as _;
 
 impl Rsvp for ReservationManager {
     async fn reserve(&self, rsvp: abi::Reservation) -> Result<abi::Reservation, abi::Error> {
@@ -103,32 +104,41 @@ impl Rsvp for ReservationManager {
     async fn query(
         &self,
         para: abi::ReservationQuery,
-    ) -> Result<Vec<abi::Reservation>, abi::Error> {
+    ) -> Result<mpsc::Receiver<Result<abi::Reservation, abi::Error>>, abi::Error> {
         let timespan: PgRange<DateTime<Utc>> = para.timespan()?;
         let status = ReservationStatus::try_from(para.status)
             .unwrap_or(ReservationStatus::Unknown)
             .to_string();
+        let pool = self.pool.clone();
         // if user_id is null, find all reservations within during for the resource
         // if resource_id is null, find all reservations within during for the user
         // if both are null, find all reservations within during
         // if both set, find all reservations within during for the resource and user
         // if status == unknown, find all reservations within during
-        let query = sqlx::query_as(
-            r#"
-            SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)
-            "#,
-        )
-        .bind(para.user_id)
-        .bind(para.resource_id)
-        .bind(timespan)
-        .bind(status)
-        .bind(para.page)
-        .bind(para.is_desc)
-        .bind(para.page_size)
-        .fetch_all(&self.pool)
-        .await?;
 
-        Ok(query)
+        let (tx, rx) = mpsc::channel(32);
+        tokio::spawn(async move {
+            let mut query = sqlx::query_as(
+                r#"
+                SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)
+                "#,
+            )
+            .bind(para.user_id)
+            .bind(para.resource_id)
+            .bind(timespan)
+            .bind(status)
+            .bind(para.page)
+            .bind(para.is_desc)
+            .bind(para.page_size)
+            .fetch(&pool);
+            while let Some(rsvp) = query.next().await {
+                if tx.send(rsvp.map_err(|e| e.into())).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        Ok(rx)
     }
 
     async fn filter(
@@ -356,10 +366,10 @@ mod test {
             .build()
             .unwrap();
 
-        let query = manager.query(query).await.unwrap();
+        let mut query = manager.query(query).await.unwrap();
 
-        assert_eq!(query.len(), 1);
-        assert_eq!(query[0].id, rsvp.id);
+        assert_eq!(query.recv().await.unwrap().unwrap().id, rsvp.id);
+        assert_eq!(query.len(), 0);
 
         let query = abi::ReservationQueryBuilder::default()
             .user_id("user")
@@ -368,9 +378,9 @@ mod test {
             .build()
             .unwrap();
 
-        let query = manager.query(query).await.unwrap();
-        assert_eq!(query.len(), 1);
-        assert_eq!(query[0].id, rsvp.id);
+        let mut query = manager.query(query).await.unwrap();
+        assert_eq!(query.recv().await.unwrap().unwrap().id, rsvp.id);
+        assert_eq!(query.len(), 0);
     }
 
     #[sqlx::test(migrations = "../migrations")]
