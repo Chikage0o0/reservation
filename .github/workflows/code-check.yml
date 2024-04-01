@@ -25,10 +25,10 @@ jobs:
         uses: arduino/setup-protoc@v3
       - name: Install Rust
         run: rustup toolchain install stable --component llvm-tools
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: install nextest
-        uses: taiki-e/install-action@nextest
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.6.4
+      - name: Install deps
+        run: cargo binstall cargo-deny cargo-nextest cargo-watch sqlx-cli --no-confirm
       - uses: Swatinem/rust-cache@v2
       - name: Check code format
         run: cargo fmt -- --check
