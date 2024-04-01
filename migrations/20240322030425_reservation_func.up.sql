@@ -2,15 +2,11 @@
 -- if resource_id is null, find all reservations within during for the user
 -- if both are null, find all reservations within during
 -- if both set, find all reservations within during for the resource and user
-CREATE OR REPLACE FUNCTION rsvp.query(
-    uid text,
-    rid text,
-    during tstzrange,
-    status rsvp.reservation_status DEFAULT 'unknown',
-    page integer DEFAULT 1,
-    is_desc bool DEFAULT FALSE,
-    page_size integer DEFAULT 10
-) RETURNS TABLE(LIKE rsvp.reservations) AS $$
+CREATE OR REPLACE FUNCTION rsvp.query(uid text, rid text, during tstzrange, status rsvp.reservation_status DEFAULT 'unknown', page integer DEFAULT 1, is_desc bool DEFAULT FALSE, page_size integer DEFAULT 10)
+    RETURNS TABLE(
+        LIKE rsvp.reservations
+    )
+    AS $$
 DECLARE
     _sql text;
 BEGIN
@@ -18,98 +14,77 @@ BEGIN
         page := 1;
     END IF;
 
-    IF page_size < 1 OR page_size > 100 THEN
+    IF page_size < 1 OR page_size > 500 THEN
         page_size := 10;
     END IF;
-
     -- format the query
-    _sql := format('SELECT * FROM rsvp.reservations WHERE %L @> timespan AND %s AND %s ORDER BY lower(timespan) %s LIMIT   %s  OFFSET  %s',
-        during,
-        CASE
-            WHEN uid IS NULL AND rid IS NULL THEN
-                'TRUE'
-            WHEN uid IS NULL THEN
-                'resource_id = ' || quote_literal(rid)
-            WHEN rid IS NULL THEN
-                'user_id = ' || quote_literal(uid)
-            ELSE
-                'user_id = ' || quote_literal(uid) || ' AND resource_id = ' || quote_literal(rid)
-        END,
-        CASE
-            WHEN status = 'unknown' THEN
-                'TRUE'
-            ELSE
-                'status = ' || quote_literal(status)
-        END,
-        CASE
-            WHEN is_desc THEN
-                'DESC'
-            ELSE
-                'ASC'
-        END,
-        page_size,
-        (page - 1) * page_size
-    );
+    _sql := format('SELECT * FROM rsvp.reservations WHERE %L @> timespan AND %s AND %s ORDER BY lower(timespan) %s LIMIT   %s  OFFSET  %s', during, CASE WHEN uid IS NULL
+            AND rid IS NULL THEN
+            'TRUE'
+        WHEN uid IS NULL THEN
+            'resource_id = ' || quote_literal(rid)
+        WHEN rid IS NULL THEN
+            'user_id = ' || quote_literal(uid)
+        ELSE
+            'user_id = ' || quote_literal(uid) || ' AND resource_id = ' || quote_literal(rid)
+        END, CASE WHEN status = 'unknown' THEN
+            'TRUE'
+        ELSE
+            'status = ' || quote_literal(status)
+        END, CASE WHEN is_desc THEN
+            'DESC'
+        ELSE
+            'ASC'
+        END, page_size,(page - 1) * page_size);
 
     RETURN QUERY EXECUTE _sql;
 END;
 $$
 LANGUAGE plpgsql;
 
-
-CREATE OR REPLACE FUNCTION rsvp.filter(
-    uid text,
-    rid text,
-    status rsvp.reservation_status DEFAULT 'unknown',
-    cursor bigint DEFAULT 0,
-    is_desc bool DEFAULT FALSE,
-    page_size integer DEFAULT 10
-) RETURNS TABLE(LIKE rsvp.reservations) AS $$
+CREATE OR REPLACE FUNCTION rsvp.filter(uid text, rid text, status rsvp.reservation_status DEFAULT 'unknown', CURSOR bigint DEFAULT 0, is_desc bool DEFAULT FALSE, page_size integer DEFAULT 10)
+    RETURNS TABLE(
+        LIKE rsvp.reservations
+    )
+    AS $$
 DECLARE
     _sql text;
 BEGIN
-    IF page_size < 1 OR page_size > 100 THEN
+    IF page_size < 1 OR page_size > 500 THEN
         page_size := 10;
     END IF;
-    IF cursor < 0 THEN
-        cursor := 0;
+    IF CURSOR < 0 THEN
+        CURSOR := 0;
     END IF;
-    IF cursor > 9223372036854775807 THEN
-        cursor := 9223372036854775807;
+    IF CURSOR > 9223372036854775807 THEN
+        CURSOR := 9223372036854775807;
+    END IF;
+    IF CURSOR = 0 AND is_desc THEN
+        CURSOR := 9223372036854775807;
     END IF;
     -- format the query
-    _sql := format('SELECT * FROM rsvp.reservations WHERE %s AND %s AND %s ORDER BY lower(timespan) %s LIMIT %s ',
-        CASE
-            WHEN is_desc THEN
-                'id < ' || quote_literal(cursor)
-            ELSE
-                'id > ' || quote_literal(cursor)
-        END,
-
-        CASE
-            WHEN uid IS NULL AND rid IS NULL THEN
-                'TRUE'
-            WHEN uid IS NULL THEN
-                'resource_id = ' || quote_literal(rid)
-            WHEN rid IS NULL THEN
-                'user_id = ' || quote_literal(uid)
-            ELSE
-                'user_id = ' || quote_literal(uid) || ' AND resource_id = ' || quote_literal(rid)
-        END,
-        CASE
-            WHEN status = 'unknown' THEN
-                'TRUE'
-            ELSE
-                'status = ' || quote_literal(status)
-        END,
-        CASE
-            WHEN is_desc THEN
-                'DESC'
-            ELSE
-                'ASC'
-        END,
-        page_size
-    );
+    _sql := format('SELECT * FROM rsvp.reservations WHERE %s AND %s AND %s ORDER BY lower(timespan) %s LIMIT %s ', CASE WHEN is_desc THEN
+            'id < ' || quote_literal(CURSOR)
+        ELSE
+            'id > ' || quote_literal(CURSOR)
+        END, CASE WHEN uid IS NULL
+            AND rid IS NULL THEN
+            'TRUE'
+        WHEN uid IS NULL THEN
+            'resource_id = ' || quote_literal(rid)
+        WHEN rid IS NULL THEN
+            'user_id = ' || quote_literal(uid)
+        ELSE
+            'user_id = ' || quote_literal(uid) || ' AND resource_id = ' || quote_literal(rid)
+        END, CASE WHEN status = 'unknown' THEN
+            'TRUE'
+        ELSE
+            'status = ' || quote_literal(status)
+        END, CASE WHEN is_desc THEN
+            'DESC'
+        ELSE
+            'ASC'
+        END, page_size);
 
     RETURN QUERY EXECUTE _sql;
 END;

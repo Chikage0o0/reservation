@@ -1,8 +1,11 @@
 use std::path::Path;
 
 use abi::config::Config;
-use abi::reservation_service_server::ReservationServiceServer;
 use reservation_service::RsvpService;
+use signal_hook::{
+    consts::{SIGINT, SIGTERM},
+    iterator::Signals,
+};
 
 #[tokio::main]
 async fn main() {
@@ -26,15 +29,22 @@ async fn main() {
 
     let config = Config::load(config_path).unwrap();
     let service = RsvpService::from_config(&config).await.unwrap();
-    let svc = ReservationServiceServer::new(service);
 
     let listen = format!("{}:{}", config.server.host, config.server.port);
 
     println!("Listening on {}", listen);
     println!("Press Ctrl-C to stop");
-    tonic::transport::Server::builder()
-        .add_service(svc)
-        .serve(listen.parse().unwrap())
+
+    let mut signals = Signals::new([SIGINT, SIGTERM]).unwrap();
+
+    let (stop_signal_tx, handler) = reservation_service::run(listen.parse().unwrap(), service)
         .await
         .unwrap();
+
+    if signals.forever().next().is_some() {
+        println!("\nReceived signal, exiting");
+        stop_signal_tx.send(()).unwrap();
+    }
+
+    handler.await.unwrap().unwrap();
 }

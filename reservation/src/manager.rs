@@ -173,7 +173,7 @@ impl Rsvp for ReservationManager {
             query.reverse();
         }
 
-        let prev = if query.len() < para.page_size as usize && para.is_prev {
+        let prev = if para.cursor == 0 || (query.len() < para.page_size as usize && para.is_prev) {
             None
         } else {
             query.first().map(|r| r.id)
